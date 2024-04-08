@@ -1,4 +1,5 @@
-﻿using Discord.WebSocket;
+﻿using Discord.Commands;
+using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -18,8 +19,12 @@ await Host.CreateDefaultBuilder()
         services.AddOptions();
 
         services.AddSingleton<DiscordSocketClient>()
+            .AddSingleton<CommandService>()
+            .AddSingleton<IYouTubeAudioOutputProviderService, LinuxYouTubeAudioOutputProviderService>()
+            .AddSingleton<AudioPlayerService>()
             .AddHostedService<DiscordLifecycleService>()
-            .AddSingleton(Options.Create(context.Configuration.GetSection("Discord").Get<DiscordOptions>() ?? new DiscordOptions()));
+            .AddSingleton(Options.Create(context.Configuration.GetSection("Discord").Get<DiscordOptions>() ?? new DiscordOptions()))
+            .AddSingleton(Options.Create(context.Configuration.GetSection("AudioPlayer").Get<AudioPlayerOptions>() ?? new AudioPlayerOptions()));
     })
     .Build()
     .RunAsync();

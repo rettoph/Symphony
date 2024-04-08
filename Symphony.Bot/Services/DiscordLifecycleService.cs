@@ -1,12 +1,10 @@
 ﻿using Discord;
-using Discord.Audio;
 using Discord.Commands;
 using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Diagnostics;
 
 namespace Symphony.Bot.Services
 {
@@ -16,50 +14,35 @@ namespace Symphony.Bot.Services
         private readonly DiscordSocketClient _client;
         private readonly IServiceProvider _services;
         private readonly ILogger<DiscordLifecycleService> _logger;
+        private readonly AudioPlayerService _audioPlayers;
+        private readonly CommandService _commands;
 
-        public DiscordLifecycleService(IOptions<DiscordOptions> options, DiscordSocketClient client, IServiceProvider services, ILogger<DiscordLifecycleService> logger)
+        public DiscordLifecycleService(IOptions<DiscordOptions> options, DiscordSocketClient client, IServiceProvider services, ILogger<DiscordLifecycleService> logger, AudioPlayerService audioPlayers, CommandService commands)
         {
             _options = options;
             _client = client;
             _services = services;
             _logger = logger;
+            _audioPlayers = audioPlayers;
+            _commands = commands;
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
+            await _commands.AddModulesAsync(typeof(DiscordLifecycleService).Assembly, _services);
+
             await this.Login();
             await _client.StartAsync();
 
             _client.Disconnected += this.HandleDisconnected;
             _client.MessageReceived += this.HandleMessageRecieved;
 
-            _client.GuildAvailable += async (x) =>
+            _client.GuildAvailable += (x) =>
             {
-                _ = Task.Run(async () =>
-                {
-                    var client = await x.VoiceChannels.First().ConnectAsync();
+                _audioPlayers.Add(x);
 
-                    using (var ffmpeg = CreateStream("daB9QRwVQH4"))
-                    using (var output = ffmpeg.StandardOutput.BaseStream)
-                    using (var discord = client.CreatePCMStream(AudioApplication.Mixed))
-                    {
-                        try { await output.CopyToAsync(discord); }
-                        finally { await discord.FlushAsync(); }
-                    }
-                });
-
+                return Task.CompletedTask;
             };
-        }
-
-        private Process? CreateStream(string videoId)
-        {
-            return Process.Start(new ProcessStartInfo
-            {
-                FileName = "bash",
-                Arguments = $"get-audio.sh {videoId}",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-            });
         }
 
         public Task StopAsync(CancellationToken cancellationToken)
@@ -107,8 +90,7 @@ namespace Symphony.Bot.Services
             // then execute the command if one is matched.
             using (IServiceScope scope = _services.CreateScope())
             {
-                throw new NotImplementedException();
-                //await _commands.ExecuteAsync(context, argPos, scope.ServiceProvider);
+                await _commands.ExecuteAsync(context, argPos, scope.ServiceProvider);
             }
 
             // Note that normally a result will be returned by this format, but here

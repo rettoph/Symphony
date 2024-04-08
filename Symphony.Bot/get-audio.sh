@@ -1,1 +1,0 @@
-﻿& youtube-dlp -x https://www.youtube.com/watch?v=$1 -o - | ffmpeg -hide_banner -loglevel panic -i pipe: -ac 2 -f s16le -ar 48000 pipe:1
